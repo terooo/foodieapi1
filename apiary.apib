@@ -556,6 +556,15 @@ TODO link to product field descriptions.
             "trId": "12345678"
           }
 
++ Response 200 (application/json)
+
+        {
+            "status": 404,
+            "message": {
+                "error": "Entry not found"
+            }
+        }
+
 ### Product Search [GET /api/entry/search?term={term}&limit={limit}]
 
 + Parameters
@@ -1689,6 +1698,16 @@ TODO link to product field descriptions.
             "page": 0
         }
 
+
++ Response 200 (application/json)
+
+        {
+            "status": 404,
+            "message": {
+                "error": "Entry not found"
+            }
+        }
+
 ### Get Subcategories [GET /api/entry/category_children?category_id={category_id}]
 
 + Parameters 
@@ -2074,6 +2093,17 @@ TODO link to product field descriptions.
             }
         }
 
++ Response 200 (application/json)
+
+        {
+        
+            "status": 404,
+            "message": {
+                "error": "Category not found."
+            }
+        
+        }
+
 ## Stores [/api/store]
 
 TODO link to store field descriptions.
@@ -2217,6 +2247,16 @@ TODO link to store field descriptions.
                     ]
                 }
             }
+        }
+
++ Response 200 (application/json)
+
+        {
+        "status": 404,
+            "message": {
+                "error": "Store not found"
+            }
+        
         }
 
 ### List All Stores [GET /api/store/list]
