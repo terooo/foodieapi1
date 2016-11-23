@@ -144,7 +144,7 @@ The following Ruby code demonstrates how to log in to Foodie server and obtain a
         HOST = 'http://development.foodie.fm/'
         USER = <existing user account>
         PASSWD = <password for the account>
-        APP_ID = <your app id or test id '1AC5808CEE6445599252D5B756137755'>
+        APP_ID = <your app id>
         
         skey = login(HOST, USER, PASSWD, APP_ID)
         
@@ -685,15 +685,6 @@ Creates and activates a new empty shopping list for user. Deactivates any old sh
 Get the active shopping list for user. Requires authentication.
 
 + Response 200 (application/json)
-
-        {
-            "status": 404,
-            "message": {
-                "error":"No list for user"
-            }
-        }
-
-+ Response 200 (application/json)
         
         {
             "status": 200,
@@ -814,6 +805,16 @@ Get the active shopping list for user. Requires authentication.
             }
         }
 
++ Response 200 (application/json)
+
+        {
+            "status": 404,
+            "message": {
+                "error":"No list for user"
+            }
+        }
+
+
 ### Add Item to Shopping List [GET /api/shopping_list/add_item?crc={crc}&ean={ean}&amount={amount}]
 
 Add a product to the active shopping list of a user. The items are always added, even if the shopping list not up to date. Requires authentication.
@@ -825,6 +826,40 @@ Add a product to the active shopping list of a user. The items are always added,
     
 + Response 200 (application/json)
 
+        {
+            "status": 200,
+            "message": {
+                "shopping_list": {
+                    "crc": "197729b8b16a737f5b298331b61942f4",
+                    "num_items": 2,
+                    "total_amount": 3,
+                    "total_price": 1.25,
+                    "guid": "12f0cf6e16f1e50ad51fd9ff479ee6a9"
+                },
+                "item_id": 12345678
+            }
+        }
+
++ Response 200 (application/json)
+
+        {
+            "status": 304,
+            "message": {
+                "shopping_list": "Updates available",
+                "item_id": 12345678
+            }
+        }
+
++ Response 200 (application/json)
+
+        {
+            "status": 404,
+            "message": {
+                "error": "Item not found"
+            }
+        }
+
+        
 ### Check for Updates to Shopping List [GET /api/shopping_list/status?crc={crc}]
 
 Find out if there are changes to the active shopping list of a user. Requires authentication.
@@ -833,6 +868,36 @@ Find out if there are changes to the active shopping list of a user. Requires au
     + crc (required, string, `6d55642487b6e24ae1c586b998b8b800`) ... Shopping list crc.
 
 + Response 200 (application/json)
+
+        {
+            "status": 200,
+            "message": {
+                "shopping_list": {
+                    "crc": "197729b8b16a737f5b298331b61942f4",
+                    "num_items": 2,
+                    "total_price": 1.25,
+                    "guid": "12f0cf6e16f1e50ad51fd9ff479ee6a9"
+                }
+            }
+        }
+
++ Response 200 (application/json)
+
+        {
+            "status": 304,
+            "message": {
+                "shopping_list": "Updates available"
+            }
+        }
+
++ Response 200 (application/json)
+
+        {
+            "status": 404,
+            "message": {
+                "error":"No list for user"
+            }
+        }
 
 
 ### Deactivate Shopping List [GET /api/shopping_list/close?crc={crc}]
@@ -844,6 +909,33 @@ Deactivates current shopping list of the user. Will not close list if crc does n
 
 + Response 200 (application/json)
 
+        {
+            "status": 200,
+            "message": {
+                "shopping_list": "Closed"
+            }
+        }
+
++ Response 200 (application/json)
+
+        {
+            "status": 304,
+            "message": {
+                "shopping_list": "Updates available"
+            }
+        }
+
++ Response 200 (application/json)
+
+        {
+            "status": 404,
+            "message": {
+                "error":"No list for user"
+            }
+        }
+
+
+        
 
 ## Recipes [/recipe]
 
