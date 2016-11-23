@@ -1,0 +1,704 @@
+FORMAT: 1A
+HOST: http://polls.apiblueprint.org/
+
+# FoodieAPI
+
+FoodieAPI is an API for querying product, recipe and store related information.
+
+## Authentication [/api/auth]
+
+Most Foodie API methods require authentication. Even the public methods accept an authenticated user: if the user is known, the response can be tailored to suit user’s preferences.
+
+Users can log in to Foodie server with a “Foodie account”, which is an email and password based authentication, or they can use Facebook authentication.
+
+Users can also log in anonymously, which allows, for example, test usage. Anonymous account can be later on transformed into a Foodie account or bound to a Facebook account.
+
+On a successful login, the server returns a session key, which is used to identify the user in subsequent requests.
+
+The authentication parameters are also used for service usage logging. The application id is sent in the login request, and the session key also identifies the application id.
+
+Each authenticated request must also contain a transaction id. Transaction id is an arbitrary string, which identifies the request uniquely. You should use a long random number as transaction id.
+
+Please note session_key is the key to use in method signing (as well as the secret).
+
+
+### Failing login too many times in a row
+
+If login is called too many times with unknown user id or wrong password, then logging in with the given user is disabled for client specific time.
+
+The following message is returned from all successive login calls, until the client has waited the number of seconds given by wait_time field.
+
+After the given wait time, when correct password is given the failed logins counter is reseted to 0. The counter is also reseted to 0 when there has been less than allowed maximum number of login attempts, and then a correct password is given.
+
+The amount of failed logins allowed can be specified per client.
+
+This functionality is used both in Foodie login and external login. It can be disabled/enabled for selected client.
+
+An error code with value “1” is also returned in addition to textual message, when too many failed attempts are made.
+
+
+### Authentication parameters
+
+Authenticated requests must include some default parameters: session key, transaction id and method signature (see below).
+
+In GET requests, authentication parameters are sent in URL as ‘skey’, ‘trId’ and ‘sig’.
+
+
+### Method signing
+
+Authenticated requests are signed with a hash calculated from the request parameters. Signature differs for GET and POST methods
+
+
+#### GET method signing
+
+Signature is a MD5 hash calculated from the method name, parameters, transaction id, session key and the secret.
+
+Signing process for GET requests is as follows:
+
+1) Get the method name of the call, without any pre- or postfixes.
+2) Append all parameters (including session key and transaction id) in alphabetical order.
+3) Append the secret
+4) Calculate MD5 from the result
+5) Ensure that the MD5 result is in lowercase
+
+For example, sign http://server/api/api/recipe/add_favourite.json?guid=0123456789abcdef with session key “my_session_key”, secret “my_application_secret” and transaction id “12345678”
+
+- method name is “add_favourite”
+- parameters are guid=0123456789abcdef, trId=12345678, skey=my_session_key
+- signature before hashing is add_favouriteguid012345678abcdefskeymy_session_keytrId12345678my_application_secret
+- MD5 digest is 5957bdcad70d346130e8897be27cedd2
+- final request is http://server/api/api/recipe/add_favourite.json?guid=0123456789abcdef&trId=12345678&skey=my_session_key&sig=5957bdcad70d346130e8897be27cedd2
+
+Note that the parameter order in URL is not important.
+
+
+#### POST method signing
+
+Signature for post method is calculated from the session key, transaction id and application secret. Only the values are used.
+
+
+- sig = MD(<transaction id> + <session key> + <application secret>)
+- Signature string to hash for the previous example, in case of POST method, would be
+- 12345678my_session_keymy_application_secret
+
+
+### Examples
+
+#### Login using Ruby
+
+The following Ruby code demonstrates how to log in to Foodie server and obtain a session key. Replace missing user information with existing user account information.
+
+        require 'digest/md5'
+        require 'json'
+        require 'net/http'
+        
+        # Helper to create the digest
+        def password_digest(userName, passWord)
+          Digest::MD5.hexdigest(userName + Digest::MD5.hexdigest(passWord))
+        end
+        
+        # Log in to Foodie server.
+        #  host = address of the server, for example http://development.foodie.fm/
+        #         Must end with backslash.
+        #  userName = the user account(email)
+        #  passWord = user's password as plain text
+        #  appId = the application id 
+        #
+        # Returns:
+        #   session key, if logged in succesfully
+        #   nil on failure
+        def login(host, userName, passWord, appId)
+          digest = password_digest(userName.downcase, passWord)
+        
+          uri = URI(host + 'api/auth/login')
+          req = Net::HTTP::Post.new(uri.path)
+        
+          body = {'message' => 
+                    {'login' => 
+                      {'username' => userName, 
+                       'password' => digest, 
+                       'appid' => appId} }, 
+                  'trId' => '123456'} 
+        
+          req.body = JSON.generate(body)
+        
+          res = Net::HTTP.start(uri.host, uri.port) do |http|
+            http.request(req)
+          end
+        
+          if (!res.is_a?(Net::HTTPSuccess)) then
+            puts 'HTTP error'
+            return nil;
+          end
+        
+          response = JSON.parse(res.body)
+        
+          if (response['status'] != 200)
+            puts response['message']['error']
+            return nil
+          end
+        
+          session_key = response['message']['auth']['session_key']
+        end
+        
+        HOST = 'http://development.foodie.fm/'
+        USER = <existing user account>
+        PASSWD = <password for the account>
+        APP_ID = <your app id or test id '1AC5808CEE6445599252D5B756137755'>
+        
+        skey = login(HOST, USER, PASSWD, APP_ID)
+        
+        puts skey ? "Got session key #{skey}" : "Could not log in"
+
+
+#### Method signing using Ruby
+
+The following example generates signatures, both for GET and POST methods. params[‘skey’] and params[‘trId’] must be set to session key and transaction id, respectively.
+
+        def generate_signature(isGet, appSecret, function, params, trId)
+          str = ""
+        
+          if (isGet) then
+            # Get the function name (everything after last /)
+            str = function[/[^\/]*$/]
+           
+            # Remove possible .json
+            str = str[/[^\.]*/]
+            
+            # Append parameters and values in alphabetical order
+            str += params.to_a.sort.join
+        
+          else
+            # Append only skey and trId values for POST signature
+            str += params['trId']
+            str += params['skey']
+          end
+        
+          # Finish with the secret
+          str += appSecret
+        
+          # Get the digest
+          sig = Digest::MD5.hexdigest(str)
+        
+          return sig
+        end
+
+
+
+### Login [POST /api/auth/login.json]
+
++ Request
+
+        {
+          "trId": "<TRANSACTION ID>",
+          "message": {
+            "login": {
+              "username": "<EMAIL>",
+              "password": "<DIGEST>",
+              "appid": "<APPLICATION ID>",
+              "skey": "<old session key>"
+            }
+          }
+        }
+
++ Response 200 (application/json)
+
+        {
+          "trId": <TRANSACTION ID>
+          "status": 200,
+          "message": {
+            "auth": {
+              "session_key": "<SESSION KEY>"
+            }
+          }
+        }
+
+
+## Products and Categories [/api/entry]
+
+TODO link to product field descriptions.
+
+### Get One Product [GET /api/entry?ean={ean}]
+
++ Parameters
+    + ean (required, number, `123`) ... EAN code of the product.
+
++ Response 200 (application/json)
+
+          {
+            "status": 200,
+            "message": {
+              "entry": {
+                "ean": 3228881004611,
+                "name": "Yellow Label Tea 50 bags",
+                "type": "PT",
+                "subname": "Lipton",
+                "brand": "Lipton",
+                "commentable" : "true",
+                "pt_category_id": 2539,
+                "quantity": 0.1,
+                "unit_name": "KG",
+                "source": "SOK",
+                "popularity": 0.500000683479509,
+                "has_details": true,
+                "details_supplier": "Unilever Finland Oy, Foods",
+                "details_name": "Lipton 50ps Yellow Label Tea",
+                "origin": "BE",
+                "ingredients": "Black tea",
+                "kj": 5,
+                "kcal": 43,
+                "protein": 0.31,
+                "carbohydrate": 8.0,
+                "sugar": 8.0,
+                "fat": 0.0737,
+                "fat_saturated": 0.0185,
+                "fiber": 3.9,
+                "sodium": 0.0,
+                "vitamin_a_mcg": 1.64,
+                "vitamin_d_mcg": 0.0,
+                "vitamin_c_mg": 6.0,
+                "vitamin_e_mg": 0.06,
+                "images": 1,
+                "description": "Quality Tea.",
+                "sales_unit_name": "KOT",
+                "updated_at": "2012-05-07T22:04:03+03:00",
+                "aisle": "JUOMAT",
+                "aisle_number": 14,
+                "product_class": "package",
+                "num_likes": 338,
+                "contains_alcohol": true,
+                "stock_level": 3.0,
+                "drop_shipping": {
+                  "range_min": 1,
+                  "range_max": 3,
+                  "range_unit": "days"
+                },
+                "entrytags": [
+                  {
+                    "kind": "brand",
+                    "name": "Lipton"
+                  },{
+                    "kind": "brand",
+                    "name": "Lipton"
+                  }
+                ],
+                "manufacturer": {
+                  "name": "Unilever"
+                },
+                "favourite": true,
+                "foodie_meter": 70.0,
+                "user_preferences": {
+                  "fish": 1,
+                  "egg": 0
+                },
+                "entry_ad": {
+                  "id": 53813,
+                  "starts_at": "2010-11-02 00:00:00 +0200",
+                  "ends_at": "2010-12-31 00:00:00 +0200",
+                  "price": 1.95,
+                  "comp_price": 19.5,
+                  "comp_unit": "KG",
+                  "store": {
+                    "chain_name": "Prisma",
+                    "name": "Prisma Laune",
+                    "address": "Sample street 10, 15610 Lahti",
+                    "lat": "60.96119",
+                    "lon": "25.65831",
+                    "guid": "6390786be602ae434a36464ae9d57bd0",
+                    "prices": true
+                  }
+                },
+                "entry_labels": [
+                  {
+                    "name": "Good from Finland",
+                    "image_name": "GOOD.png"
+                  }, {
+                    "name": "Sample label",
+                    "image_name": "SAMPLE.png"
+                  }
+                ],
+                "enumbers": {
+                  "E450": "Di-Sodium Phosphate",
+                  "E500": "Sodium Carbonate"
+                },
+                "entry_attributes": [
+                  {
+                    "attribute": {
+                      "id": 2,
+                      "name": "Package size",
+                      "editor_note": "This is just an example."
+                      "options":[
+                        {
+                          "id": 7,
+                          "name": "Small",
+                          "order": 1
+                        }, {
+                          "id": 8,
+                          "name": "Normal",
+                          "order": 2
+                        }, {
+                          "id": 9,
+                          "name": "Big",
+                          "order": 3
+                        }
+                      ]
+                    },
+                    "id": 2,
+                    "order": 0,
+                    "count": 1,
+                    "label": "Product package size"
+                  }
+                ],
+                "has_variants": true,
+                "choosable_variants": true,
+                "product_attributes": [
+                  {
+                    "name": "Size",
+                    "value": "S"
+                  }, {
+                    "name": "Color",
+                    "value": "Red"
+                  }
+                ],
+                "availability_details": "Available on Thursdays between 12.33-13.09",
+                "notes_description": "Also available in handy one hectoliter package.",
+                "feed_items": "DEPRACATED",
+                "price": 2.25,
+                "comp_price": 22.5,
+                "unit_of_measure": "KOT",
+                "package_size": 0.1,
+                "comp_unit": "KG",
+                "scale_product": false,
+                "currency": "€",
+                "has_recipes": true,
+                "name_35": "Yellow Label Tee 50 Ps",
+                "long_name": "Yellow Label Tee 50 Pussia",
+                "brand_name": "Lipton",
+                "gross_weight": 100.5,
+                "net_weight": 80,
+                "gross_weight_unit": "GR",
+                "net_weight_unit": "GR",
+                "height": 150,
+                "width": 80,
+                "depth": 75,
+                "height_unit": "MM",
+                "width_unit": "MM",
+                "depth_unit": "MM",
+                "net_content_value": 0.08,
+                "net_content_unit": "KG",
+                "nutrient_ref_value": 100,
+                "nutrient_ref_unit": "G",
+                "convenience_level": "100",
+                "good_after_opening_days": 31,
+                "temperature_storage_max": 30,
+                "temperature_storage_min": -30,
+                "temperature_tolerance_max": 100,
+                "temperature_tolerance_min": -55,
+                "flash_point_c": 500,
+                "temperature_unit": "CE",
+                "ph_value": 5.0,
+                "alcohol_percentage": 0.5,
+                "manufacturer_gln": "6430054999991",
+                "entry_h_phrase_additional_info": "Extremely dangerous tea",
+                "entry_p_phrase_additional_info": "Be careful in the vicinity of hot water",
+                "entry_packaging_type": {
+                  "gdsn_code": "SRW",
+                  "name": "Shrinkwrap"
+                },
+                "entry_packaging_recycling": {
+                  "gdsn_code": "EYU",
+                  "name": "Energy efficient"
+                },
+                "entry_h_phrase": {
+                  "gdsn_code": "H240",
+                  "name": "Danger of explosion if heated"
+                  },
+                "entry_p_phrase": {
+                  "gdsn_code": "P412",
+                  "name": "Do not expose to temperatures over 50°C/122°F."
+                },
+                "entry_gpc_category": {
+                  "ext_id": "10005717",
+                  "name": "Tea"
+                },
+                "entry_gpc_attributes": [
+                  {
+                    "ext_id": "30009198",
+                    "name": "Mount type",
+                    "value": "Disconnected"
+                  }, {
+                    "ext_id": "30004369",
+                    "name": "Power source",
+                    "value": "Tree"
+                  }
+                ],
+                "entry_additives": [
+                  {
+                    "gdsn_code": "CPT",
+                    "name": "Contains Phosphate"
+                  }, {
+                    "gdsn_code": "ZWA",
+                    "name": "Added water"
+                  }
+                ],
+                "entry_ingredient_features": [
+                  {
+                    "gdsn_code": "AOI",
+                    "name": "Ingredients of animal origin"
+                  }, {
+                    "gdsn_code": "GLT",
+                    "name": "Contains gelatin"
+                  }
+                ],
+                "entry_nutritional_properties": [
+                  {
+                    "gdsn_code": "FOL",
+                    "name": "Contains folic acid"
+                  }, {
+                    "gdsn_code": "IB6",
+                    "name": "Added Vitamin-B6"
+                  }, {
+                    "gdsn_code": "USW",
+                    "name": "Unsweetened"
+                  }
+                ],
+                "entry_feature_benefits": [
+                  {
+                    "gdsn_code": "NO_ZEOLITE",
+                    "name": "No zeolite"
+                  }, {
+                    "gdsn_code": "ANTIBACTERIC",
+                    "name": "Anti-bacterial"
+                  }
+                ],
+                "entry_s_phrases": [
+                  {
+                    "gdsn_code": "S15",
+                    "name": "Keep safe from heat"
+                  }, {
+                    "gdsn_code": "S2",
+                    "name": "Not for kids."
+                  }
+                ],
+                "entry_allergens": [
+                  {
+                    "gdsn_code": "AM",
+                    "name": "Dairy products",
+                    "containment_level": "FREE_FROM"
+                  }, {
+                    "gdsn_code": "UM",
+                    "name": "Mollusc product",
+                    "containment_level": "MAY_CONTAIN"
+                  }, {
+                    "gdsn_code": "AE",
+                    "name": "Eggs and egg products",
+                    "containment_level": "CONTAINS"
+                  }
+                ],
+                "entry_characteristics": [
+                  {
+                    "gdsn_code": "CHC",
+                    "name": "Amount of Cocoa",
+                    "percentage": 0.5
+                  }, {
+                    "gdsn_code": "DNR",
+                    "name": "Dilution Ratio",
+                    "percentage": 75
+                  }
+                ],
+                "entry_nutrients": [
+                  {
+                    "gdsn_code": "FAT",
+                    "name": "Fat",
+                    "amount_g": 10,
+                    "amount_precision": "EXACT"
+                  }, {
+                    "gdsn_code": "FIBTG",
+                    "name": "Fiber",
+                    "amount_g": 2,
+                    "amount_precision": "APPROXIMATELY"
+                  }
+                ],
+                "entry_vitamins": [
+                  {
+                    "gdsn_code": "VITK",
+                    "name": "Vitamin-K",
+                    "amount": 0.001,
+                    "amount_unit": "G"
+                  }, {
+                    "gdsn_code": "CU",
+                    "name": "Copper",
+                    "amount": 1000,
+                    "amount_unit": "G"
+                  }
+                ],
+                "entry_hazard_symbols": [
+                  {
+                    "gdsn_code": "T+",
+                    "name": "Extremely poisonous",
+                    "image_name": "T+.PNG"
+                  }, {
+                    "gdsn_code": "F",
+                    "name": "Flammable",
+                    "image_name": "F.PNG"
+                  }
+                ],
+                "entry_warning_pictograms": [
+                  {
+                    "gdsn_code": "FLAME",
+                    "name": "Flame",
+                    "image_name": "FLAME.PNG"
+                  }
+                ]
+              }
+            },
+            "num_results": 1,
+            "trId": "12345678"
+          }
+
+### Product Search [GET /api/entry/search?term={term}&limit={limit}]
+
++ Parameters
+    + term (required, string, `milk`) ... Search string.
+    + limit (optional, number) ... Limit for the number of results (default 100).
+
++ Response 200 (application/json)
+
+
+### List Popular Products [GET /api/entry/popular?limit={limit}&page={page}]
+
++ Parameters
+    + limit (optional, number) ... Limit for the number of results per page (default 5).
+    + page (optional, number) ... Page number (default 0).
+    
++ Response 200 (application/json)
+
+
+### List Products Often Bought Together [GET /api/entry/neighbours?ean={ean}]
+
++ Parameters
+    + ean (required, number, `123`) ... EAN code of the product.
+
++ Response 200 (application/json)
+
+
+### Get Subcategories [GET /api/entry/category_children?category_id={category_id}]
+
++ Parameters 
+    + category_id (optional, number, `123`) ... Id of the parent category (If omitted, top level categories are returned).
+
++ Response 200 (application/json)
+
+
+### Get Products Within a Category [GET /api/entry/category_entries?category_id={category_id}]
+
++ Parameters
+    + category_id (required, number, `123`) ... Id of the category.
+
++ Response 200 (application/json)
+
+
+## Stores [/api/store]
+
+TODO link to store field descriptions.
+
+
+### Get One Store [GET /api/store?guid={guid}]
+
++ Parameters 
+    + guid (optional, string, `a06c5f44097d44c532207b5cfbf16978`) ... Guid of the store (default: default store guid).
+
++ Response 200 (application/json)
+
+
+### List All Stores [GET /api/store/list]
+
++ Response 200 (application/json)
+
+
+### Store Search [GET /api/store/search?query={query}&limit={limit}&page={page}]
+
++ Parameters 
+    + query (required, string, `alepa`) ... Query string.
+    + limit (optional, number, `10`) ... Number of results per page.
+    + page (optional, string, `0`) ... Page number.
+
++ Response 200 (application/json)
+
+
+### List Nearest Stores [GET /api/store/nearest?lat={lat}&lon={lon}&limit={limit}&page={page}]
+
++ Parameters 
+    + lat (required, number, `60.17`) ... Latitude.
+    + lon (required, number, `24.95`) ... Longitude.
+    + limit (optional, number, `10`) ... Number of results per page.
+    + page (optional, string, `0`) ... Page number.
+
++ Response 200 (application/json)
+
+
+### List Stores in Range - Based on Zip Code [GET /api/store/in_range?zip_code={zip_code}&country={country}&radius={radius}&limit={limit}]
+
++ Parameters 
+    + radius (required, number, `1000`) ... Radius in meters.
+    + zip_code (required, string, `00420`) ... Zip code.
+    + country (required, string, `Finland`) ... Country.
+    + limit (optional, number, `10`) ... Number of results.
+
++ Response 200 (application/json)
+
+
+### List Stores in Range - Based on Latitude and Longitude [GET /api/store/in_range?lat={lat}&lon={lon}&limit=1&radius={radius}]
+
++ Parameters 
+    + radius (required, number, `1000`) ... Circle radius in meters.
+    + lat (required, number, `60.17`) ... Center point latitude.
+    + lon (required, number, `24.95`) ... Center point longitude.
+    + limit (optional, number, `10`) ... Number of results.
+
++ Response 200 (application/json)
+
+## Recipes [/recipe]
+
+TODO link to recipe field descriptions.
+
+
+### Get One Recipe [GET /api/recipe?guid={guid}]
+
++ Parameters 
+    + guid (required, string, `642930c2ac0766e7e93943b84d630607`) ... Recipe GUID.
+
++ Response 200 (application/json)
+
+
+### Recipe Search [GET /api/recipe?name={name}&limit={limit}&page={page}&filters={filters}]
+
++ Parameters 
+    + name (required, string, `pasta`) ... Search string.
+    + filters (optional, string, `1,2`) ... Comma separated list of search filter identifiers.
+    + limit (optional, number, `10`) ... Number of results per page (default 25).
+    + page (optional, string, `2`) ... Page number (default 0).
+
++ Response 200 (application/json)
+
+
+### Recipe Search Filters [GET /api/recipe/search_filters]
+
++ Response 200 (application/json)
+
+
+### List Popular Recipes [GET /api/recipe/popular?limit={limit}&filter={filter}]
+
++ Parameters 
+    + filter (optional, string, `1,2`) ... Optional search filter id.
+    + limit (optional, number, `10`) ... Number of results per page (default 25).
+
++ Response 200 (application/json)
+
+
+### List Similar Recipes [GET /api/recipe/similar?guid={guid}]
+
++ Parameters 
+    + guid (required, string, `9b4f7e662e6895756d9b50255b254a0b`) ... Recipe GUID.
+
++ Response 200 (application/json)
