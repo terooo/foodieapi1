@@ -658,6 +658,55 @@ TODO link to store field descriptions.
 
 + Response 200 (application/json)
 
+
+## Shopping List
+
+### Create Shopping List [GET /api/shopping_list/create]
+
+Creates and activates a new empty shopping list for user. Deactivates any old shopping lists. Requires authentication.
+
++ Parameters
+    + crc (required, string, `6d55642487b6e24ae1c586b998b8b800`) ... Shopping list crc.
+
++ Response 200 (application/json)
+
+### Get Active Shopping List [GET /api/shopping_list]
+
+Get the active shopping list for user. Requires authentication.
+
++ Parameters
+    + crc (required, string, `6d55642487b6e24ae1c586b998b8b800`) ... Shopping list crc.
+
++ Response 200 (application/json)
+
+### Add Item to Shopping List [GET /api/shopping_list/add_item]
+
+Add a product to the active shopping list of a user. The items are always added, even if the shopping list not up to date. Requires authentication.
+
++ Parameters
+    + crc (required, string, `6d55642487b6e24ae1c586b998b8b800`) ... Shopping list crc.
+
++ Response 200 (application/json)
+
+### Check for Updates to Shopping List [GET /api/shopping_list/status]
+
+Find out if there are changes to the active shopping list of a user. Requires authentication.
+
++ Parameters
+    + crc (required, string, `6d55642487b6e24ae1c586b998b8b800`) ... Shopping list crc.
+
++ Response 200 (application/json)
+
+
+### Deactivate Shopping List [GET /api/shopping_list/close?crc={crc}]
+
+Deactivates current shopping list of the user. Will not close list if crc does not match with the current list on server.
+
++ Parameters
+    + crc (required, string, `6d55642487b6e24ae1c586b998b8b800`) ... Shopping list crc.
+
++ Response 200 (application/json)
+
 ## Recipes [/recipe]
 
 TODO link to recipe field descriptions.
