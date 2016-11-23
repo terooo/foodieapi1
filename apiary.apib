@@ -661,6 +661,8 @@ TODO link to store field descriptions.
 
 ## Shopping List [/api/shopping/list]
 
+In FoodieAPI a user can have at most one active shopping list at a time. A shopping list is always tied to a user, and all shopping list methods require authentication.
+
 ### Create Shopping List [GET /api/shopping_list/create]
 
 Creates and activates a new empty shopping list for user. Deactivates any old shopping lists. Requires authentication.
