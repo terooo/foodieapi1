@@ -84,6 +84,74 @@ Signature for post method is calculated from the session key, transaction id and
 
 ### Examples
 
+#### Registering a new user
+
+The following Ruby code demonstrates how to create a new user account.
+
+        require 'digest/md5'
+        require 'json'
+        require 'net/http'
+        
+        # Log in to Foodie server.
+        #  host = address of the server, for example http://api-dev-junction.foodieservices.com:8080/
+        #         Must end with backslash.
+        #  userName = the user account(email)
+        #  passWord = user's password as plain text
+        #  appId = the application id 
+        #
+        # Returns:
+        #   session key, if logged in succesfully
+        #   nil on failure
+        def register(host, userName, passWord, appId, appSecret)
+        
+          passWord = Digest::MD5.hexdigest(passWord)
+        
+          sig = Digest::MD5.hexdigest(userName + passWord + appId + appSecret)
+        
+          uri = URI(host + 'api/auth/register')
+          req = Net::HTTP::Post.new(uri.path)
+        
+          body = {'message' => {
+                      'username' => userName, 
+                      'password' => passWord,
+                      'appid' => appId,
+                      'signature' => sig,
+                    }, 
+                  'trId' => '123456'
+                } 
+        
+          req.body = JSON.generate(body)
+        
+          res = Net::HTTP.start(uri.host, uri.port) do |http|
+            http.request(req)
+          end
+        
+          if (!res.is_a?(Net::HTTPSuccess)) then
+            puts 'HTTP error'
+            return nil;
+          end
+        
+          response = JSON.parse(res.body)
+        
+          if (response['status'] != 200)
+            puts response['message']['error']
+            return nil
+          end
+        
+        
+          response['message']['auth']['session_key']
+        end
+        
+        HOST = 'http://api-dev-junction.foodieservices.com:8080/'
+        USER = <user email>
+        PASSWD = <password>
+        APP_ID = <app id>
+        APP_SECRET = <secret>
+        # Test app id    : 734668FA19309DA8AF048C0BA42FD356
+        # Test app secret: 9f3984e36f2b9ad6cf75c7e7a804e8db
+        
+        register(HOST, USER, PASSWD, APP_ID, APP_SECRET)
+
 #### Login using Ruby
 
 The following Ruby code demonstrates how to log in to Foodie server and obtain a session key. Replace missing user information with existing user account information.
@@ -108,7 +176,7 @@ The following Ruby code demonstrates how to log in to Foodie server and obtain a
         #   session key, if logged in succesfully
         #   nil on failure
         def login(host, userName, passWord, appId)
-          digest = password_digest(userName.downcase, passWord)
+st          digest = password_digest(userName.downcase, passWord)
         
           uri = URI(host + 'api/auth/login')
           req = Net::HTTP::Post.new(uri.path)
