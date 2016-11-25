@@ -176,7 +176,7 @@ The following Ruby code demonstrates how to log in to Foodie server and obtain a
         #   session key, if logged in succesfully
         #   nil on failure
         def login(host, userName, passWord, appId)
-st          digest = password_digest(userName.downcase, passWord)
+          digest = password_digest(userName.downcase, passWord)
         
           uri = URI(host + 'api/auth/login')
           req = Net::HTTP::Post.new(uri.path)
