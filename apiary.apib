@@ -2876,6 +2876,92 @@ Add a product to the active shopping list of a user. The items are always added,
             }
         }
 
+### Update item to Shopping List [GET /api/shopping_list/update_item]
+
+Updates item amount on shipping list.
+
++ Parameters
+    + crc (required, string, `6d55642487b6e24ae1c586b998b8b800`) ... Shopping list crc.
+    + id (required, number, `123`) ... ID of shopping list item to be modified.
+    + amount (required, number, `2`) ... Number of items.
+    
++ Response 200 (application/json)
+
+        {
+            "status": 200,
+            "message": {
+                "shopping_list": {
+                    "crc": "197729b8b16a737f5b298331b61942f4",
+                    "num_items": 2,
+                    "total_amount": 3,
+                    "total_price": 1.25,
+                    "guid": "12f0cf6e16f1e50ad51fd9ff479ee6a9"
+                },
+                "item_id": 12345678
+            }
+        }
+
++ Response 200 (application/json)
+
+        {
+            "status": 304,
+            "message": {
+                "shopping_list": "Updates available",
+                "item_id": 12345678
+            }
+        }
+
++ Response 200 (application/json)
+
+        {
+            "status": 404,
+            "message": {
+                "error": "Item not found"
+            }
+        }
+
+### Remove item from Shopping List [GET /api/shopping_list/remove_item]
+
+Updates item amount on shipping list.
+
++ Parameters
+    + crc (required, string, `6d55642487b6e24ae1c586b998b8b800`) ... Shopping list crc.
+    + id (required, number, `123`) ... ID of shopping list item to be removed.
+    
++ Response 200 (application/json)
+
+        {
+            "status": 200,
+            "message": {
+                "shopping_list": {
+                    "crc": "197729b8b16a737f5b298331b61942f4",
+                    "num_items": 2,
+                    "total_amount": 3,
+                    "total_price": 1.25,
+                    "guid": "12f0cf6e16f1e50ad51fd9ff479ee6a9"
+                },
+                "item_id": 12345678
+            }
+        }
+
++ Response 200 (application/json)
+
+        {
+            "status": 304,
+            "message": {
+                "shopping_list": "Updates available",
+                "item_id": 12345678
+            }
+        }
+
++ Response 200 (application/json)
+
+        {
+            "status": 404,
+            "message": {
+                "error": "Item not found"
+            }
+        }
         
 ### Check for Updates to Shopping List [GET /api/shopping_list/status?crc={crc}]
 
